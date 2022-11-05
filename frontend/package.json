@@ -7,11 +7,13 @@
   "author": "Petteri Johansson",
   "license": "MIT",
   "scripts": {
-    "dev": "parcel index.ts",
-    "build": "parcel build index.ts"
+    "dev": "parcel index.html",
+    "build": "parcel build index.html"
   },
+  "dependencies": {},
   "devDependencies": {
     "parcel-bundler": "^1.12.5",
-    "typescript": "^4.8.4"
+    "typescript": "^4.8.4",
+    "parcel-plugin-wasm-pack": "6.0.1"
   }
 }
