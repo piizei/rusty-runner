@@ -4,4 +4,4 @@ node_modules
 yarn-error.log
 .cache
 rm
-frontend/dist
+dist

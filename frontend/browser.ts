@@ -1,4 +1,3 @@
-import { greet, start  } from '../wasm/Cargo.toml';
+import { greet } from '../wasm/Cargo.toml';
 
 greet()
-start()

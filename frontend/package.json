@@ -13,7 +13,7 @@
   "dependencies": {},
   "devDependencies": {
     "parcel-bundler": "^1.12.5",
-    "typescript": "^4.8.4",
-    "parcel-plugin-wasm-pack": "6.0.1"
+    "parcel-plugin-wasm-pack": "6.0.1",
+    "typescript": "^4.8.4"
   }
 }

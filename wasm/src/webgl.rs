@@ -1,10 +1,25 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader};
+use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-// Shader compiler code is from https://github.com/rustwasm/wasm-bindgen/blob/main/examples/webgl/
+pub struct SpriteGl {
+    pub context: WebGl2RenderingContext,
+    pub program: WebGlProgram,
+    pub vertex_position_attrib: i32,
+    pub vertex_texture_attrib: i32,
+    pub model_matrix_uniform: WebGlUniformLocation,
+    pub projection_matrix_uniform: WebGlUniformLocation,
+    pub texture_sampler_uniform: WebGlUniformLocation,
+    pub mask_sampler_uniform: WebGlUniformLocation,
+    pub color_uniform: WebGlUniformLocation,
+}
 
-pub fn start() -> Result<(), JsValue> {
+pub struct SpriteGl2 {
+    pub context: WebGl2RenderingContext,
+    pub program: WebGlProgram
+}
+
+pub fn initialize_web_gl() -> Result<SpriteGl, JsValue> {
     let document = web_sys::window().unwrap().document().unwrap();
     let canvas = document.get_element_by_id("canvas").unwrap();
     let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
@@ -17,32 +32,111 @@ pub fn start() -> Result<(), JsValue> {
     let vert_shader = compile_shader(
         &context,
         WebGl2RenderingContext::VERTEX_SHADER,
-        r##"#version 300 es
- 
-        in vec4 position;
-        void main() {
-        
-            gl_Position = position;
-        }
+        r##"
+            attribute vec4 aVertexPosition;
+            attribute vec2 aTextureCoord;
+            uniform mat4 uModelMatrix;
+            uniform mat4 uProjectionMatrix;
+            varying highp vec2 vTextureCoord;
+            void main(void) {
+            gl_Position = uProjectionMatrix * uModelMatrix * aVertexPosition;
+            vTextureCoord = aTextureCoord;
+            }
         "##,
     )?;
 
     let frag_shader = compile_shader(
         &context,
         WebGl2RenderingContext::FRAGMENT_SHADER,
-        r##"#version 300 es
-    
-        precision highp float;
-        out vec4 outColor;
-        
-        void main() {
-            outColor = vec4(1, 1, 1, 1);
-        }
+        r##"
+            precision mediump float;
+            varying highp vec2 vTextureCoord;
+            uniform sampler2D uTextureSampler;
+            uniform sampler2D uMaskSampler;
+            uniform vec4 uColor;
+            void main(void) {
+                vec4 texture = texture2D(uTextureSampler, vTextureCoord);
+                vec4 mask = texture2D(uMaskSampler, vTextureCoord);
+                gl_FragColor = texture * mask * uColor;
+            }
         "##,
     )?;
     let program = link_program(&context, &vert_shader, &frag_shader)?;
     context.use_program(Some(&program));
 
+    let vertex_position_attrib = context.get_attrib_location(&program, "aVertexPosition");
+    let vertex_texture_attrib = context.get_attrib_location(&program, "aTextureCoord");
+
+    let model_matrix_uniform = context
+        .get_uniform_location(&program, "uModelMatrix")
+        .ok_or_else(|| String::from("get_uniform_location model_matrix_uniform failed"))?;
+
+    let projection_matrix_uniform = context
+        .get_uniform_location(&program, "uProjectionMatrix")
+        .ok_or_else(|| String::from("get_uniform_location projection_matrix_uniform failed"))?;
+    let texture_sampler_uniform = context
+        .get_uniform_location(&program, "uTextureSampler")
+        .ok_or_else(|| String::from("get_uniform_location texture_sampler_uniform failed"))?;
+
+    let mask_sampler_uniform = context
+        .get_uniform_location(&program, "uMaskSampler")
+        .ok_or_else(|| String::from("get_uniform_location mask_sampler_uniform failed"))?;
+
+    let color_uniform = context
+        .get_uniform_location(&program, "uColor")
+        .ok_or_else(|| String::from("get_uniform_location color_uniform failed"))?;
+
+    Ok(SpriteGl {
+        context,
+        program,
+        vertex_position_attrib,
+        vertex_texture_attrib,
+        model_matrix_uniform,
+        projection_matrix_uniform,
+        texture_sampler_uniform,
+        mask_sampler_uniform,
+        color_uniform,
+    })
+}
+
+pub fn initialize_web_gl2() -> Result<SpriteGl2, JsValue> {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let canvas = document.get_element_by_id("canvas").unwrap();
+    let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+
+    let context = canvas
+        .get_context("webgl2")?
+        .unwrap()
+        .dyn_into::<WebGl2RenderingContext>()?;
+
+        let vert_shader = compile_shader(
+            &context,
+            WebGl2RenderingContext::VERTEX_SHADER,
+            r##"#version 300 es
+     
+            in vec4 position;
+            void main() {
+            
+                gl_Position = position;
+            }
+            "##,
+        )?;
+    
+        let frag_shader = compile_shader(
+            &context,
+            WebGl2RenderingContext::FRAGMENT_SHADER,
+            r##"#version 300 es
+        
+            precision highp float;
+            out vec4 outColor;
+            
+            void main() {
+                outColor = vec4(1, 1, 1, 1);
+            }
+            "##,
+        )?;
+    let program = link_program(&context, &vert_shader, &frag_shader)?;
+    context.use_program(Some(&program));
     let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
 
     let position_attribute_location = context.get_attrib_location(&program, "position");
@@ -85,17 +179,17 @@ pub fn start() -> Result<(), JsValue> {
     context.bind_vertex_array(Some(&vao));
 
     let vert_count = (vertices.len() / 3) as i32;
-    draw(&context, vert_count);
-
-    Ok(())
-}
-
-fn draw(context: &WebGl2RenderingContext, vert_count: i32) {
     context.clear_color(0.0, 0.0, 0.0, 1.0);
     context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
     context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, vert_count);
+
+    Ok(SpriteGl2 {
+        context,
+        program
+    })
 }
+
 
 pub fn compile_shader(
     context: &WebGl2RenderingContext,
